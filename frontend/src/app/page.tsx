@@ -22,7 +22,9 @@ interface ApiError {
 
 type DetailLevel = 'brief' | 'standard' | 'detailed'
 
-const DEFAULT_OUTPUT_PATH = 'C:\\Users\\shost\\Documents\\BrainDump\\YouTube要約'
+// Obsidian設定
+const DEFAULT_VAULT_NAME = 'BrainDump'
+const DEFAULT_FOLDER_PATH = 'YouTube要約'
 
 export default function Home() {
   const [url, setUrl] = useState('')
@@ -32,7 +34,8 @@ export default function Home() {
   const [copied, setCopied] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [detailLevel, setDetailLevel] = useState<DetailLevel>('detailed')
-  const [outputPath, setOutputPath] = useState(DEFAULT_OUTPUT_PATH)
+  const [vaultName, setVaultName] = useState(DEFAULT_VAULT_NAME)
+  const [folderPath, setFolderPath] = useState(DEFAULT_FOLDER_PATH)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [editableTags, setEditableTags] = useState<string[]>([])
@@ -46,9 +49,13 @@ export default function Home() {
       setTheme(savedTheme)
       document.documentElement.setAttribute('data-theme', savedTheme)
     }
-    const savedPath = localStorage.getItem('outputPath')
-    if (savedPath) {
-      setOutputPath(savedPath)
+    const savedVault = localStorage.getItem('vaultName')
+    if (savedVault) {
+      setVaultName(savedVault)
+    }
+    const savedFolder = localStorage.getItem('folderPath')
+    if (savedFolder) {
+      setFolderPath(savedFolder)
     }
   }, [])
 
@@ -59,9 +66,14 @@ export default function Home() {
     localStorage.setItem('theme', newTheme)
   }
 
-  const saveOutputPath = (path: string) => {
-    setOutputPath(path)
-    localStorage.setItem('outputPath', path)
+  const saveVaultName = (name: string) => {
+    setVaultName(name)
+    localStorage.setItem('vaultName', name)
+  }
+
+  const saveFolderPath = (path: string) => {
+    setFolderPath(path)
+    localStorage.setItem('folderPath', path)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -139,37 +151,62 @@ export default function Home() {
     }
   }
 
-  const saveToObsidian = async () => {
+  const generateFrontmatter = () => {
+    if (!result) return ''
+    const created = new Date().toISOString().split('T')[0]
+    const tagsYaml = editableTags.length > 0
+      ? `tags:\n${editableTags.map(t => `  - ${t}`).join('\n')}`
+      : ''
+
+    return `---
+title: "${result.title}"
+channel: "${result.channel}"
+published: ${result.published || 'unknown'}
+url: ${result.url}
+thumbnail: ${result.thumbnail}
+model: ${result.model}
+created: ${created}
+${tagsYaml}
+---
+
+`
+  }
+
+  const sanitizeFilename = (text: string): string => {
+    // 最初の見出しからタイトルを抽出
+    const match = text.match(/^# (.+)$/m)
+    let title = match ? match[1].trim() : 'untitled'
+    // ファイル名に使えない文字を除去
+    title = title.replace(/[<>:"/\\|?*]/g, '')
+    return title.slice(0, 50)
+  }
+
+  const saveToObsidian = () => {
     if (!result) return
 
     setSaving(true)
     setSaveMessage(null)
 
     try {
-      const response = await fetch(`${API_URL}/api/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          video_id: result.video_id,
-          content: result.digest,
-          output_path: outputPath,
-          title: result.title,
-          channel: result.channel,
-          published: result.published,
-          url: result.url,
-          thumbnail: result.thumbnail,
-          tags: editableTags,
-          model: result.model,
-        }),
-      })
+      // フロントマター + コンテンツ
+      const frontmatter = generateFrontmatter()
+      const fullContent = frontmatter + result.digest
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail?.message || '保存に失敗しました')
-      }
+      // ファイル名生成
+      const title = sanitizeFilename(result.digest)
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '')
+      const filename = `${title}_${dateStr}`
 
-      const data = await response.json()
-      setSaveMessage(`保存完了: ${data.filename}`)
+      // Vault内のファイルパス
+      const filePath = folderPath ? `${folderPath}/${filename}` : filename
+
+      // Obsidian URI生成
+      const uri = `obsidian://new?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePath)}&content=${encodeURIComponent(fullContent)}`
+
+      // Obsidianを開く
+      window.location.href = uri
+
+      setSaveMessage(`Obsidianで開きました: ${filename}.md`)
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : '保存に失敗しました')
     } finally {
@@ -320,13 +357,23 @@ export default function Home() {
         <section className="settings-section">
           <div className="settings-card">
             <div className="settings-row">
-              <span className="settings-label">出力先</span>
+              <span className="settings-label">Vault名</span>
               <input
                 type="text"
                 className="settings-input"
-                value={outputPath}
-                onChange={(e) => saveOutputPath(e.target.value)}
-                placeholder="Obsidian Vaultのパス"
+                value={vaultName}
+                onChange={(e) => saveVaultName(e.target.value)}
+                placeholder="ObsidianのVault名"
+              />
+            </div>
+            <div className="settings-row">
+              <span className="settings-label">フォルダ</span>
+              <input
+                type="text"
+                className="settings-input"
+                value={folderPath}
+                onChange={(e) => saveFolderPath(e.target.value)}
+                placeholder="保存先フォルダ（例: YouTube要約）"
               />
             </div>
           </div>
