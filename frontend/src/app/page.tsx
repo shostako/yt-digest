@@ -6,8 +6,6 @@ import ReactMarkdown from 'react-markdown'
 interface DigestResult {
   video_id: string
   digest: string
-  transcript_language: string
-  is_auto_generated: boolean
   model: string
   title: string
   channel: string
@@ -265,11 +263,6 @@ export default function Home() {
                     )}
                     <span className="meta-item">
                       <span className="meta-label">モデル</span> {result.model}
-                    </span>
-                    <span className="meta-item">
-                      <span className="meta-label">言語</span>
-                      {result.transcript_language}
-                      {result.is_auto_generated && ' (自動)'}
                     </span>
                   </div>
                 </div>

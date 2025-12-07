@@ -21,8 +21,6 @@ class DigestRequest(BaseModel):
 class DigestResponse(BaseModel):
     video_id: str
     digest: str
-    transcript_language: str
-    is_auto_generated: bool
     model: str
     # メタデータ
     title: str
@@ -93,9 +91,8 @@ async def create_digest(request: DigestRequest):
     YouTube動画の解説を生成
 
     - URLから動画IDを抽出
-    - 字幕を取得
     - メタデータを取得
-    - Gemini APIで解説を生成（Pro優先、Quota超過時はFlashにフォールバック）
+    - Gemini APIに直接YouTube URLを渡して解説を生成
     """
     # 動画ID抽出
     video_id = YouTubeService.extract_video_id(request.url)
@@ -107,23 +104,14 @@ async def create_digest(request: DigestRequest):
 
     youtube = YouTubeService()
 
-    # 字幕取得
-    try:
-        transcript_data = youtube.get_transcript(video_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "NO_TRANSCRIPT", "message": str(e)},
-        )
-
     # メタデータ取得
     metadata = youtube.get_video_metadata(video_id)
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    # 解説生成
+    # 解説生成（Gemini APIに直接YouTube URLを渡す）
     try:
         gemini = GeminiService()
-        result = gemini.generate_digest(transcript_data["text"], request.detail_level)
+        result = gemini.generate_digest(video_url, request.detail_level)
     except ValueError as e:
         raise HTTPException(
             status_code=500,
@@ -133,8 +121,6 @@ async def create_digest(request: DigestRequest):
     return DigestResponse(
         video_id=video_id,
         digest=result["text"],
-        transcript_language=transcript_data["language"],
-        is_auto_generated=transcript_data["is_generated"],
         model=result["model"],
         # メタデータ
         title=metadata["title"],

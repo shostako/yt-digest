@@ -1,4 +1,4 @@
-"""Gemini API連携サービス"""
+"""Gemini API連携サービス（YouTube URL直接処理）"""
 import os
 import re
 import google.generativeai as genai
@@ -9,15 +9,14 @@ load_dotenv()
 
 
 class GeminiService:
-    """Gemini APIで解説を生成するサービス"""
+    """Gemini APIでYouTube動画の解説を生成するサービス"""
 
     # モデル優先順位（Pro → Flash）
     MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"]
 
-    # 詳細度別プロンプト
+    # 詳細度別プロンプト（YouTube URL直接処理用）
     PROMPTS = {
-        "brief": """以下はYouTube動画の字幕テキストです。
-この動画の内容を簡潔に要約してください。
+        "brief": """このYouTube動画の内容を簡潔に要約してください。
 
 【出力形式】
 1. 最初に動画タイトルを # 見出しで記載（「YouTube動画」等の接頭辞は不要）
@@ -25,12 +24,8 @@ class GeminiService:
 3. 全体で300文字程度
 4. 最後に「---」の後、この動画を表すキーワードタグを5〜8個、カンマ区切りで出力
    例: タグ: AI, 機械学習, プログラミング, Python
-
-【字幕テキスト】
-{transcript}
 """,
-        "standard": """以下はYouTube動画の字幕テキストです。
-この動画の内容を要約してください。
+        "standard": """このYouTube動画の内容を要約してください。
 
 【出力形式】
 1. 最初に動画タイトルを # 見出しで記載（「YouTube動画」等の接頭辞は不要）
@@ -39,12 +34,8 @@ class GeminiService:
 4. 全体で500〜800文字程度
 5. 最後に「---」の後、この動画を表すキーワードタグを5〜8個、カンマ区切りで出力
    例: タグ: AI, 機械学習, プログラミング, Python
-
-【字幕テキスト】
-{transcript}
 """,
-        "detailed": """以下はYouTube動画の字幕テキストです。
-この動画の内容について詳細に解説してください。
+        "detailed": """このYouTube動画の内容について詳細に解説してください。
 
 【出力形式】
 - 最初に動画タイトルを # 見出しで記載（「YouTube動画」等の接頭辞は不要）
@@ -55,9 +46,6 @@ class GeminiService:
 - Markdown形式で見出しや箇条書きを適切に使用
 - 最後に「---」の後、この動画を表すキーワードタグを5〜10個、カンマ区切りで出力
   例: タグ: AI, 機械学習, プログラミング, Python, Claude
-
-【字幕テキスト】
-{transcript}
 """,
     }
 
@@ -67,12 +55,12 @@ class GeminiService:
             raise ValueError("GEMINI_API_KEY が設定されていません")
         genai.configure(api_key=api_key)
 
-    def generate_digest(self, transcript: str, detail_level: str = "detailed") -> dict:
+    def generate_digest(self, youtube_url: str, detail_level: str = "detailed") -> dict:
         """
-        字幕テキストから解説を生成（Pro優先、Quota超過時はFlashにフォールバック）
+        YouTube動画から解説を生成（URLを直接Geminiに渡す）
 
         Args:
-            transcript: 字幕テキスト
+            youtube_url: YouTube動画のURL
             detail_level: 詳細度（brief / standard / detailed）
 
         Returns:
@@ -82,21 +70,20 @@ class GeminiService:
                 "model": str  # 使用したモデル名
             }
         """
-        # 長すぎる字幕は切り詰める（トークン制限対策）
-        max_chars = 30000
-        if len(transcript) > max_chars:
-            transcript = transcript[:max_chars] + "\n\n[以下省略...]"
-
         # 詳細度に応じたプロンプトを選択
-        prompt_template = self.PROMPTS.get(detail_level, self.PROMPTS["detailed"])
-        prompt = prompt_template.format(transcript=transcript)
+        prompt = self.PROMPTS.get(detail_level, self.PROMPTS["detailed"])
         last_error = None
 
         for model_name in self.MODELS:
             try:
                 model = genai.GenerativeModel(model_name)
+
+                # YouTube URLを直接Geminiに渡す
                 response = model.generate_content(
-                    prompt,
+                    [
+                        prompt,
+                        {"file_data": {"file_uri": youtube_url}}
+                    ],
                     generation_config=genai.types.GenerationConfig(
                         temperature=0.7,
                         max_output_tokens=4096,
