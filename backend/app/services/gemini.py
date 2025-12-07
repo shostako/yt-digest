@@ -11,8 +11,8 @@ load_dotenv()
 class GeminiService:
     """Gemini APIでYouTube動画の解説を生成するサービス"""
 
-    # モデル優先順位（Pro → Flash）
-    MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"]
+    # YouTube動画処理はFlashのみ（トークン消費が大きいためProは使わない）
+    MODELS = ["gemini-2.5-flash"]
 
     # 詳細度別プロンプト（YouTube URL直接処理用）
     PROMPTS = {
