@@ -2,44 +2,49 @@
 
 ## 現在の状態
 - **最終更新**: 2025-12-07
-- **アクティブタスク**: ローカル動作確認
+- **ステータス**: ✅ 本番稼働中
 
 ## 完了済み
 - [x] プロジェクト作成
 - [x] 技術スタック決定（Next.js + FastAPI + Gemini）
-- [x] 仕様書作成（.tmp/requirements.md）
-- [x] バックエンド実装（FastAPI + youtube-transcript-api + Gemini）
+- [x] 仕様書作成
+- [x] バックエンド実装（FastAPI + Gemini）
 - [x] フロントエンド実装（Next.js + ReactMarkdown）
+- [x] ローカル動作確認
+- [x] Renderデプロイ
+- [x] youtube-transcript-api廃止 → Gemini直接URL処理に移行
+- [x] Flashモデルのみに変更（Quota最適化）
 
-## 未完了・保留
-- [ ] ローカル動作確認
-- [ ] 結合テスト
-- [ ] Renderデプロイ
+## 本番環境
+- **フロントエンド**: https://yt-digest-web.onrender.com
+- **バックエンド**: https://yt-digest-api.onrender.com
 
-## 次セッションへの引き継ぎ
-- **次のアクション**:
-  1. Gemini API Key取得・設定
-  2. バックエンド起動テスト
-  3. フロントエンド起動テスト
-  4. 結合テスト
+## 技術的な決定事項
 
-## 起動方法
+### YouTube動画処理方式
+- **採用**: Gemini APIにYouTube URLを直接渡す方式
+- **理由**: youtube-transcript-apiはクラウドIPがYouTubeにブロックされる
+- **参考**: https://ai.google.dev/gemini-api/docs/video-understanding
+
+### モデル選択
+- **採用**: gemini-2.5-flash のみ
+- **理由**: YouTube動画処理はトークン消費が大きい、Pro→Flashフォールバックだと2倍消費
+
+## 制限事項
+- Gemini無料プランの制限（1分あたり250,000トークン）
+- YouTube動画処理は1日8時間分まで（Geminiプレビュー機能）
+
+## 起動方法（ローカル開発）
 
 ### バックエンド
 ```bash
 cd backend
-python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# .envにGEMINI_API_KEYを設定
 uvicorn app.main:app --reload
 ```
 
 ### フロントエンド
 ```bash
 cd frontend
-npm install
-cp .env.example .env.local
 npm run dev
 ```
