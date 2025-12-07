@@ -1,4 +1,5 @@
 """yt-digest バックエンドAPI"""
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,10 +11,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS設定（開発時は全許可、本番では適切に制限）
+# CORS設定（環境変数で制御、デフォルトはローカル開発用）
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本番ではフロントエンドのURLに制限
+    allow_origins=[FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
