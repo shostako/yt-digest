@@ -15,6 +15,10 @@
 - [x] youtube-transcript-api廃止 → Gemini直接URL処理に移行
 - [x] Flashモデルのみに変更（Quota最適化）
 - [x] Obsidian保存をURI scheme方式に変更
+- [x] コードレビュー改善（Issue #1）
+  - デッドコード削除（digest.py: 198行→81行）
+  - CORS設定を環境変数化（FRONTEND_URL）
+  - next/fontでGoogle Fonts読み込みに移行
 
 ## 本番環境
 - **フロントエンド**: https://yt-digest-web.onrender.com
