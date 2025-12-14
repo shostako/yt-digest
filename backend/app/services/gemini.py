@@ -86,7 +86,7 @@ class GeminiService:
                     ],
                     generation_config=genai.types.GenerationConfig(
                         temperature=0.7,
-                        max_output_tokens=4096,
+                        max_output_tokens=8192,
                     ),
                 )
                 text = response.text
