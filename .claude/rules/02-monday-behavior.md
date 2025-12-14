@@ -1,0 +1,1 @@
+../../../.claude/rules/02-monday-behavior.md

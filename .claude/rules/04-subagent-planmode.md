@@ -1,0 +1,1 @@
+../../../.claude/rules/04-subagent-planmode.md

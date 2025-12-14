@@ -45,6 +45,7 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [speechRate, setSpeechRate] = useState(1.2)
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const synthRef = useRef<SpeechSynthesis | null>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -66,6 +67,13 @@ export default function Home() {
     // SpeechSynthesis初期化
     if (typeof window !== 'undefined') {
       synthRef.current = window.speechSynthesis
+      // 音声リスト取得（非同期でロードされる）
+      const loadVoices = () => {
+        const v = synthRef.current?.getVoices() || []
+        setVoices(v)
+      }
+      loadVoices()
+      synthRef.current.onvoiceschanged = loadVoices
     }
   }, [])
 
@@ -275,7 +283,6 @@ ${tagsYaml}
     const utterance = new SpeechSynthesisUtterance(text)
 
     // 日本語音声を選択（Google日本語を優先）
-    const voices = synthRef.current.getVoices()
     const jaVoice = voices.find(v => v.name.includes('Google') && v.lang === 'ja-JP')
       || voices.find(v => v.lang.startsWith('ja'))
     if (jaVoice) utterance.voice = jaVoice
