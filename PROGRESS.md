@@ -1,7 +1,7 @@
 # プロジェクト進捗状況
 
 ## 現在の状態
-- **最終更新**: 2025-12-08
+- **最終更新**: 2025-12-14
 - **ステータス**: ✅ 本番稼働中
 
 ## 完了済み
@@ -19,6 +19,11 @@
   - デッドコード削除（digest.py: 198行→81行）
   - CORS設定を環境変数化（FRONTEND_URL）
   - next/fontでGoogle Fonts読み込みに移行
+- [x] Render Blueprints移行（2025-12-14）
+  - render.yaml: plan: free明示、FRONTEND_URL追加
+  - PYTHON_VERSION: 3.11 → 3.11.0（パッチバージョン必須）
+- [x] 解説文途切れ問題修正（2025-12-14）
+  - max_output_tokens: 4096 → 8192
 
 ## 本番環境
 - **フロントエンド**: https://yt-digest-web.onrender.com
