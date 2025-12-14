@@ -274,31 +274,37 @@ ${tagsYaml}
 
   // 音声読み上げ制御
   const startSpeech = () => {
+    console.log('[Speech] startSpeech called', { hasResult: !!result?.digest, hasSynth: !!synthRef.current, voicesCount: voices.length })
     if (!result?.digest || !synthRef.current) return
 
     // 既存の読み上げを停止
     synthRef.current.cancel()
 
     const text = stripMarkdown(result.digest)
+    console.log('[Speech] Text length:', text.length)
     const utterance = new SpeechSynthesisUtterance(text)
 
     // 日本語音声を選択（Google日本語を優先）
     const jaVoice = voices.find(v => v.name.includes('Google') && v.lang === 'ja-JP')
       || voices.find(v => v.lang.startsWith('ja'))
+    console.log('[Speech] Selected voice:', jaVoice?.name || 'default')
     if (jaVoice) utterance.voice = jaVoice
 
     utterance.rate = speechRate
     utterance.lang = 'ja-JP'
 
     utterance.onstart = () => {
+      console.log('[Speech] onstart')
       setIsSpeaking(true)
       setIsPaused(false)
     }
     utterance.onend = () => {
+      console.log('[Speech] onend')
       setIsSpeaking(false)
       setIsPaused(false)
     }
-    utterance.onerror = () => {
+    utterance.onerror = (e) => {
+      console.error('[Speech] onerror:', e.error)
       setIsSpeaking(false)
       setIsPaused(false)
     }
