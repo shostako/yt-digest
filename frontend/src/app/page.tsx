@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 
 interface DigestResult {
@@ -41,6 +41,12 @@ export default function Home() {
   const [editableTags, setEditableTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
 
+  // 音声読み上げ
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [speechRate, setSpeechRate] = useState(1.2)
+  const synthRef = useRef<SpeechSynthesis | null>(null)
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   useEffect(() => {
@@ -56,6 +62,10 @@ export default function Home() {
     const savedFolder = localStorage.getItem('folderPath')
     if (savedFolder) {
       setFolderPath(savedFolder)
+    }
+    // SpeechSynthesis初期化
+    if (typeof window !== 'undefined') {
+      synthRef.current = window.speechSynthesis
     }
   }, [])
 
@@ -84,6 +94,10 @@ export default function Home() {
     setError(null)
     setResult(null)
     setSaveMessage(null)
+    // 読み上げ中なら停止
+    if (synthRef.current) synthRef.current.cancel()
+    setIsSpeaking(false)
+    setIsPaused(false)
 
     try {
       const response = await fetch(`${API_URL}/api/digest`, {
@@ -172,6 +186,42 @@ ${tagsYaml}
 `
   }
 
+  // Markdown記号を除去（音声読み上げ用）
+  const stripMarkdown = (text: string): string => {
+    let result = text
+    // コードブロック ```...``` → 除去
+    result = result.replace(/```[\s\S]*?```/g, '')
+    // インラインコード `...` → 中身のみ
+    result = result.replace(/`([^`]+)`/g, '$1')
+    // 画像 ![alt](url) → 除去
+    result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
+    // リンク [text](url) → textのみ
+    result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // YouTubeタイムスタンプ [HH:MM:SS] or [MM:SS] → 除去
+    result = result.replace(/\[\d{1,2}:\d{2}(:\d{2})?\]/g, '')
+    // 太字 **text** or __text__ → textのみ
+    result = result.replace(/\*\*([^*]+)\*\*/g, '$1')
+    result = result.replace(/__([^_]+)__/g, '$1')
+    // 斜体 *text* or _text_ → textのみ
+    result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
+    result = result.replace(/(?<!_)_([^_]+)_(?!_)/g, '$1')
+    // ヘッダー # 〜 ######
+    result = result.replace(/^[\s]*#{1,6}\s*/gm, '')
+    // リストマーカー - * +
+    result = result.replace(/^[\s]*[-*+]\s+/gm, '')
+    // 引用 >
+    result = result.replace(/^>\s*/gm, '')
+    // 水平線 --- *** ___
+    result = result.replace(/^[-*_]{3,}\s*$/gm, '')
+    // 取り消し線 ~~text~~ → textのみ
+    result = result.replace(/~~([^~]+)~~/g, '$1')
+    // 区切り記号を読点に
+    result = result.replace(/[:;：；]/g, '、')
+    // 連続する空行を1つに
+    result = result.replace(/\n{3,}/g, '\n\n')
+    return result.trim()
+  }
+
   const sanitizeFilename = (text: string): string => {
     // 最初の見出しからタイトルを抽出
     const match = text.match(/^# (.+)$/m)
@@ -212,6 +262,63 @@ ${tagsYaml}
     } finally {
       setSaving(false)
     }
+  }
+
+  // 音声読み上げ制御
+  const startSpeech = () => {
+    if (!result?.digest || !synthRef.current) return
+
+    // 既存の読み上げを停止
+    synthRef.current.cancel()
+
+    const text = stripMarkdown(result.digest)
+    const utterance = new SpeechSynthesisUtterance(text)
+
+    // 日本語音声を選択（Google日本語を優先）
+    const voices = synthRef.current.getVoices()
+    const jaVoice = voices.find(v => v.name.includes('Google') && v.lang === 'ja-JP')
+      || voices.find(v => v.lang.startsWith('ja'))
+    if (jaVoice) utterance.voice = jaVoice
+
+    utterance.rate = speechRate
+    utterance.lang = 'ja-JP'
+
+    utterance.onstart = () => {
+      setIsSpeaking(true)
+      setIsPaused(false)
+    }
+    utterance.onend = () => {
+      setIsSpeaking(false)
+      setIsPaused(false)
+    }
+    utterance.onerror = () => {
+      setIsSpeaking(false)
+      setIsPaused(false)
+    }
+
+    synthRef.current.speak(utterance)
+  }
+
+  const togglePause = () => {
+    if (!synthRef.current) return
+    if (isPaused) {
+      synthRef.current.resume()
+      setIsPaused(false)
+    } else {
+      synthRef.current.pause()
+      setIsPaused(true)
+    }
+  }
+
+  const stopSpeech = () => {
+    if (!synthRef.current) return
+    synthRef.current.cancel()
+    setIsSpeaking(false)
+    setIsPaused(false)
+  }
+
+  const toggleSpeechRate = () => {
+    setSpeechRate(prev => prev === 1.2 ? 1.0 : 1.2)
   }
 
   const thumbnailUrl = result?.thumbnail ||
@@ -329,6 +436,29 @@ ${tagsYaml}
                 {result.digest.length.toLocaleString()} 文字
               </span>
               <div className="action-buttons">
+                {/* 音声読み上げ */}
+                {!isSpeaking ? (
+                  <button className="action-btn" onClick={startSpeech}>
+                    ▶ 読み上げ
+                  </button>
+                ) : (
+                  <>
+                    <button className="action-btn" onClick={togglePause}>
+                      {isPaused ? '▶ 再開' : '⏸ 一時停止'}
+                    </button>
+                    <button className="action-btn" onClick={stopSpeech}>
+                      ⏹
+                    </button>
+                  </>
+                )}
+                <button
+                  className="action-btn speed-toggle"
+                  onClick={toggleSpeechRate}
+                  title="読み上げ速度"
+                >
+                  {speechRate}x
+                </button>
+                <span className="action-divider">|</span>
                 <button className="action-btn secondary" onClick={copyToClipboard}>
                   {copied ? 'コピー済み!' : 'コピー'}
                 </button>
