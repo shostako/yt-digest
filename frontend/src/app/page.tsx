@@ -47,6 +47,7 @@ export default function Home() {
   const [speechRate, setSpeechRate] = useState(1.2)
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const synthRef = useRef<SpeechSynthesis | null>(null)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -278,11 +279,15 @@ ${tagsYaml}
 
     const synth = synthRef.current
 
-    // 既存の読み上げを停止
-    synth.cancel()
+    // 読み上げ中の場合のみキャンセル
+    if (synth.speaking) {
+      synth.cancel()
+    }
 
     const text = stripMarkdown(result.digest)
-    const utterance = new SpeechSynthesisUtterance(text)
+    // utteranceをrefに保持（GC対策）
+    utteranceRef.current = new SpeechSynthesisUtterance(text)
+    const utterance = utteranceRef.current
 
     // 日本語音声を選択（Google日本語を優先）
     const jaVoice = voices.find(v => v.name.includes('Google') && v.lang === 'ja-JP')
@@ -305,10 +310,7 @@ ${tagsYaml}
       setIsPaused(false)
     }
 
-    // Chrome対策: cancel()後に少し待ってからspeak()
-    setTimeout(() => {
-      synth.speak(utterance)
-    }, 100)
+    synth.speak(utterance)
   }
 
   const togglePause = () => {
