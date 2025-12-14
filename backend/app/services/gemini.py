@@ -89,6 +89,22 @@ class GeminiService:
                         max_output_tokens=8192,
                     ),
                 )
+
+                # レスポンスの検証
+                if not response.candidates:
+                    raise ValueError("動画を処理できませんでした。動画が非公開、削除済み、または地域制限されている可能性があります。")
+
+                candidate = response.candidates[0]
+                if not candidate.content or not candidate.content.parts:
+                    # finish_reasonを確認
+                    reason = getattr(candidate, 'finish_reason', None)
+                    if reason == 3:  # SAFETY
+                        raise ValueError("動画の内容がセーフティフィルターに引っかかりました。")
+                    elif reason == 2:  # MAX_TOKENS
+                        raise ValueError("動画が長すぎて処理できませんでした。")
+                    else:
+                        raise ValueError("動画を処理できませんでした。別の動画をお試しください。")
+
                 text = response.text
                 tags = self._extract_tags(text)
                 # タグ部分を本文から除去
