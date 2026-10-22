@@ -61,11 +61,26 @@ class YouTubeService:
                 "title": snippet.get("title", ""),
                 "channel": snippet.get("channelTitle", ""),
                 "published": snippet.get("publishedAt", "")[:10],  # YYYY-MM-DD
-                "thumbnail": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+                "thumbnail": self._best_thumbnail(video_id),
             }
         except requests.RequestException:
             # APIエラー時はoEmbedにフォールバック
             return self._get_metadata_oembed(video_id)
+
+    @staticmethod
+    def _best_thumbnail(video_id: str) -> str:
+        """高画質のサムネイル（maxresdefault）があればそれを、無ければ hqdefault を返す。
+
+        古い動画や低解像度の動画には maxresdefault が無く、YouTube は 404 と灰色の仮の絵を返す。
+        hqdefault（480x360）はどの動画にもある。
+        """
+        maxres = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+        try:
+            if requests.head(maxres, timeout=5).status_code == 200:
+                return maxres
+        except requests.RequestException:
+            pass
+        return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
 
     def _get_metadata_oembed(self, video_id: str) -> dict:
         """oEmbed APIでメタデータを取得（フォールバック用）"""
@@ -78,12 +93,12 @@ class YouTubeService:
                 "title": data.get("title", ""),
                 "channel": data.get("author_name", ""),
                 "published": "",  # oEmbedには日時情報なし
-                "thumbnail": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+                "thumbnail": self._best_thumbnail(video_id),
             }
         except Exception:
             return {
                 "title": "",
                 "channel": "",
                 "published": "",
-                "thumbnail": f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+                "thumbnail": self._best_thumbnail(video_id),
             }

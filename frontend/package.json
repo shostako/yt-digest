@@ -12,7 +12,8 @@
     "next": "15.5.28",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-markdown": "^9.0.1"
+    "react-markdown": "^9.0.1",
+    "remark-cjk-friendly": "^2.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
