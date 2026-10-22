@@ -1,8 +1,8 @@
 """Gemini API連携サービス（YouTube URL直接処理）"""
 import os
 import re
-import google.generativeai as genai
-from google.api_core.exceptions import ResourceExhausted
+from google import genai
+from google.genai import errors, types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +12,8 @@ class GeminiService:
     """Gemini APIでYouTube動画の解説を生成するサービス"""
 
     # YouTube動画処理はFlashのみ（トークン消費が大きいためProは使わない）
-    MODELS = ["gemini-2.5-flash"]
+    # gemini-2.5-flash は 2026-10 時点で新規利用者に提供終了（404）。Google の案内どおり 3.8 Flash を使う
+    MODELS = ["gemini-3.8-flash"]
 
     # 詳細度別プロンプト（YouTube URL直接処理用）
     PROMPTS = {
@@ -53,7 +54,7 @@ class GeminiService:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY が設定されていません")
-        genai.configure(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
 
     def generate_digest(self, youtube_url: str, detail_level: str = "detailed") -> dict:
         """
@@ -76,15 +77,14 @@ class GeminiService:
 
         for model_name in self.MODELS:
             try:
-                model = genai.GenerativeModel(model_name)
-
                 # YouTube URLを直接Geminiに渡す
-                response = model.generate_content(
-                    [
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=[
                         prompt,
-                        {"file_data": {"file_uri": youtube_url}}
+                        types.Part(file_data=types.FileData(file_uri=youtube_url)),
                     ],
-                    generation_config=genai.types.GenerationConfig(
+                    config=types.GenerateContentConfig(
                         temperature=0.7,
                         max_output_tokens=8192,
                     ),
@@ -98,9 +98,9 @@ class GeminiService:
                 if not candidate.content or not candidate.content.parts:
                     # finish_reasonを確認
                     reason = getattr(candidate, 'finish_reason', None)
-                    if reason == 3:  # SAFETY
+                    if reason == types.FinishReason.SAFETY:
                         raise ValueError("動画の内容がセーフティフィルターに引っかかりました。")
-                    elif reason == 2:  # MAX_TOKENS
+                    elif reason == types.FinishReason.MAX_TOKENS:
                         raise ValueError("動画が長すぎて処理できませんでした。")
                     else:
                         raise ValueError("動画を処理できませんでした。別の動画をお試しください。")
@@ -115,12 +115,14 @@ class GeminiService:
                     "tags": tags,
                     "model": model_name,
                 }
-            except ResourceExhausted as e:
-                # Quota超過 → 次のモデルを試す
-                last_error = e
-                continue
+            except errors.APIError as e:
+                # Quota超過（429）→ 次のモデルを試す。それ以外は失敗として返す
+                if e.code == 429:
+                    last_error = e
+                    continue
+                raise ValueError(f"解説の生成に失敗しました: {str(e)}")
             except Exception as e:
-                # 429エラーの文字列チェック（ResourceExhaustedでキャッチできない場合）
+                # 429エラーの文字列チェック（APIError 以外の形で届いた場合）
                 if "429" in str(e) or "quota" in str(e).lower():
                     last_error = e
                     continue
