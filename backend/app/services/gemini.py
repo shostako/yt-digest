@@ -86,7 +86,8 @@ class GeminiService:
                     ],
                     config=types.GenerateContentConfig(
                         temperature=0.7,
-                        max_output_tokens=8192,
+                        # Gemini 3 系は思考のトークンも出力の上限に数えるので、2.5 のときより広く取る
+                        max_output_tokens=16384,
                     ),
                 )
 
@@ -106,6 +107,8 @@ class GeminiService:
                         raise ValueError("動画を処理できませんでした。別の動画をお試しください。")
 
                 text = response.text
+                if not text:
+                    raise ValueError("動画を処理できませんでした。別の動画をお試しください。")
                 tags = self._extract_tags(text)
                 # タグ部分を本文から除去
                 text = self._remove_tags_section(text)
