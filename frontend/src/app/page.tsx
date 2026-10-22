@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 
 interface DigestResult {
   video_id: string
@@ -283,6 +284,13 @@ ${tagsYaml}
                     (e.target as HTMLImageElement).src =
                       `https://img.youtube.com/vi/${result.video_id}/hqdefault.jpg`
                   }}
+                  onLoad={(e) => {
+                    // 高画質のサムネイルが無い動画では、YouTube が 120x90 の灰色の仮の絵を返す
+                    const img = e.target as HTMLImageElement
+                    if (img.naturalWidth <= 120 && !img.src.endsWith('/hqdefault.jpg')) {
+                      img.src = `https://img.youtube.com/vi/${result.video_id}/hqdefault.jpg`
+                    }
+                  }}
                 />
                 <div className="hero-overlay" />
                 <div className="hero-content">
@@ -349,7 +357,7 @@ ${tagsYaml}
             )}
 
             <div className="digest-content">
-              <ReactMarkdown>{result.digest}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkCjkFriendly]}>{result.digest}</ReactMarkdown>
             </div>
           </article>
         )}
